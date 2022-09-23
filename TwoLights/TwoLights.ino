@@ -18,7 +18,7 @@ volatile unsigned long debounceUntil = 0;
 const int PLOT_DELAY = 100;
 unsigned long nextPlot = 0;
 
-volatile int fps = 50;
+volatile int fps = 60;
 
 
 void setup() {
@@ -51,6 +51,7 @@ void loop() {
   // ---- Delay ----
   digitalWrite(led, HIGH);
   floatDelay(uptime);
+
   digitalWrite(led, LOW);
   floatDelay(downtime);
 
