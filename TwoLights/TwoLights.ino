@@ -42,7 +42,7 @@ void loop() {
   // ---- Calculations ----
   int period = (1000 / fps);
 
-  float ratio = (analogRead(meter)) / 1023.0; // [0 - 1023]
+  float ratio = analogRead(meter) / 1023.0; // [0 - 1023]
 
   float uptime = period * ratio;
   float downtime = period * (1 - ratio);
