@@ -15,7 +15,10 @@ volatile int lastInc;
 const int DEBOUNCE_DELAY = 50;
 volatile unsigned long debounceUntil = 0;
 
-volatile int fps = 10;
+const int PLOT_DELAY = 100;
+unsigned long nextPlot = 0;
+
+volatile int fps = 50;
 
 
 void setup() {
@@ -24,7 +27,7 @@ void setup() {
   pinMode(led, OUTPUT);
   pinMode(meter, INPUT);
   
-  pinMode(decButton, INPUT_PULLUP);  // pullups sit HIGH and drop LOW when pressed.
+  pinMode(decButton, INPUT_PULLUP);  // pullup button switches sit HIGH when open and drop LOW when pressed.
   pinMode(incButton, INPUT_PULLUP);
   lastDec = digitalRead(decButton);
   lastInc = digitalRead(incButton);
@@ -37,75 +40,79 @@ void setup() {
 
 void loop() {
   // ---- Calculations ----
-  int wait = (1000 / fps) - 2; // -2 for min of 1 offset
+  int period = (1000 / fps);
 
   float ratio = (analogRead(meter)) / 1023.0; // [0 - 1023]
 
-  float uptime = (1 + (wait * ratio * 1000.0));
-  float downtime = (1 + (wait * (1 - ratio) * 1000.0));
+  float uptime = period * ratio;
+  float downtime = period * (1 - ratio);
 
 
   // ---- Delay ----
   digitalWrite(led, HIGH);
-  delayMicroseconds(uptime);
+  floatDelay(uptime);
   digitalWrite(led, LOW);
-  delayMicroseconds(downtime);
+  floatDelay(downtime);
+
+  // TODO/OPTIMIZE
+  // - Do math once, then drive the LED for a handfull of cycles; more speed/accuracy at the low lvls.
+  //   - already tried w/ 1 sec clusters; felt laggy AF
+  // - How much time is spent doing math (while LOW)?
 
 
   // ---- Plotter ----
-  // ** WARNING **
-  //  * Only turn this on for debugging; not when trying to drive the LED. Writing to Serial is _sloooooooowwwww_
-  Serial.print("fps:");
-  Serial.print(fps);
-  Serial.print(",wait:");
-  Serial.print(wait);
-  Serial.print(",ratio:");
-  Serial.print(ratio);
-  Serial.print(",uptime:");
-  Serial.print(uptime);
-  Serial.print(",downtime:");
-  Serial.print(downtime);
-  Serial.print(",error:");
-  Serial.print(wait - (uptime + downtime));
-  Serial.println("");
+  // // ** WARNING **
+  // //  * Only turn this on for debugging; not when trying to drive the LED.
+  // //    Writing to Serial is _sloooooooowwwww_ (comparatively)
+  // //    and creates extra time that the led is LOW, a visible blink
+  // plot(period, ratio, uptime, downtime);
 }
 
-// void Delay(float micro) {
 
-// }
 
 void decrement() {
-  int current = digitalRead(decButton);
-  buttonPress(current, lastDec, -1);
-  lastDec = current;
+  buttonPress(lastDec, -5);
+  lastDec = digitalRead(decButton);
 }
 
 void increment() {
-  int current = digitalRead(incButton);
-  buttonPress(current, lastInc, 1);
-  lastInc = current;
+  buttonPress(lastInc, 5);
+  lastInc = digitalRead(incButton);
 }
 
-void buttonPress(int pin, int last, int delta) 
-  if (last == LOW) {
-    debounce();
-    return;
+void buttonPress(int last, int delta) {
+  unsigned long now = millis();
+  if (last == HIGH && now > debounceUntil) {
+    fps += delta;
+    if (fps < 1) {
+      fps = 1;
+    }
   }
-
-  if (millis() < debounceUntil) {
-    debounce();
-    return;
-  }
-
-  fps += delta;
-  if (fps < 1) {
-    fps = 1;
-  }
-  debounce();
-  Serial.print("fps:");
-  Serial.println(fps);
+  debounceUntil = now + DEBOUNCE_DELAY;
 }
 
-void debounce() {
-  debounceUntil = millis() + DEBOUNCE_DELAY;
+void floatDelay(float ms) {
+  delay(int(ms));
+  delayMicroseconds(round(ms * 1000) % 1000);
+}
+
+void plot(int p, float r, float u, float d) {
+  unsigned int now = millis();
+  if (now > nextPlot) {
+    Serial.print("fps:");
+    Serial.print(fps);
+    Serial.print(",period:");
+    Serial.print(p);
+    Serial.print(",ratio:");
+    Serial.print(r);
+    Serial.print(",uptime:");
+    Serial.print(u);
+    Serial.print(",downtime:");
+    Serial.print(d);
+    Serial.print(",error:");
+    Serial.print(p - (u + d));
+    Serial.println("");
+
+    nextPlot = now + PLOT_DELAY;
+  }
 }
